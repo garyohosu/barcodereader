@@ -51,6 +51,8 @@ Androidスマートフォンのカメラで2つのバーコードを連続読み
 
 ### APK の作成
 
+リポジトリルートから実行する場合:
+
 ```bash
 cd android-app
 ./gradlew assembleDebug
@@ -74,8 +76,16 @@ android-app/app/build/outputs/apk/debug/app-debug.apk
 
 ### USB 経由（adb）
 
+`android-app` ディレクトリにいる場合:
+
 ```bash
 adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+リポジトリルートにいる場合:
+
+```bash
+adb install android-app/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ### ファイル転送

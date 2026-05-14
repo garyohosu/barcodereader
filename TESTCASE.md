@@ -24,13 +24,12 @@ stateDiagram-v2
 
     WAITING_FOR_FIRST --> WAITING_FOR_SECOND : onBarcodeDetected(valid)\nbarcode1 保存、BEEP 発火
     WAITING_FOR_FIRST --> WAITING_FOR_FIRST : onBarcodeDetected(null/blank)\nerrorMessage 表示、音なし
-    WAITING_FOR_FIRST --> WAITING_FOR_FIRST : onBarcodeDetected(valid) クールダウン中\n無視
     WAITING_FOR_FIRST --> IDLE : onCancel()
 
     WAITING_FOR_SECOND --> RESULT_OK : onBarcodeDetected(valid)\nbarcode1==barcode2\nBEEP→OK 発火
     WAITING_FOR_SECOND --> RESULT_NG : onBarcodeDetected(valid)\nbarcode1!=barcode2\nBEEP→NG 発火
     WAITING_FOR_SECOND --> WAITING_FOR_SECOND : onBarcodeDetected(null/blank)\nerrorMessage 表示、音なし
-    WAITING_FOR_SECOND --> WAITING_FOR_SECOND : クールダウン中\n無視
+    WAITING_FOR_SECOND --> WAITING_FOR_SECOND : onBarcodeDetected(valid) クールダウン中\n1つ目直後の誤検出を無視
     WAITING_FOR_SECOND --> IDLE : onCancel()
 
     RESULT_OK --> WAITING_FOR_FIRST : onRetry()\n全フィールドクリア
@@ -70,7 +69,7 @@ stateDiagram-v2
 
 | ID | テスト名 | 前提条件 | 操作 | 期待結果 |
 |----|---------|---------|------|---------|
-| TC-VM-009 | クールダウン中の読み取りを無視 | `phase=WAITING_FOR_FIRST` | `onBarcodeDetected("ABC")` → 即 `onBarcodeDetected("XYZ")` | `barcode1="ABC"`, `phase=WAITING_FOR_SECOND`（2回目は無視） |
+| TC-VM-009 | 1つ目読み取り直後のクールダウン中は2つ目候補を無視 | `phase=WAITING_FOR_FIRST` | `onBarcodeDetected("ABC")` → 即 `onBarcodeDetected("XYZ")` | `barcode1="ABC"`, `barcode2=null`, `phase=WAITING_FOR_SECOND` |
 | TC-VM-010 | クールダウン終了後は読み取り可 | `phase=WAITING_FOR_FIRST` | `onBarcodeDetected("ABC")` → 1秒後 `onBarcodeDetected("XYZ")` | `barcode2="XYZ"`, `phase=RESULT` |
 | TC-VM-011 | 同じ値を意図的に2回読める（クールダウン後） | `phase=WAITING_FOR_FIRST` | `onBarcodeDetected("SAME")` → 1秒後 `onBarcodeDetected("SAME")` | `result=OK` |
 
@@ -106,6 +105,9 @@ stateDiagram-v2
 | TC-VM-021 | onPermissionDenied() で permissionDenied=true | — | `onPermissionDenied()` | `permissionDenied=true`, `phase=IDLE` |
 | TC-VM-022 | IDLE 中の onBarcodeDetected は無視 | `phase=IDLE` | `onBarcodeDetected("ABC")` | `phase=IDLE`, `barcode1=null`（変化なし） |
 | TC-VM-023 | RESULT 中の onBarcodeDetected は無視 | `phase=RESULT` | `onBarcodeDetected("ABC")` | `phase=RESULT`（変化なし） |
+| TC-VM-024 | onScanStart() で permissionDenied がクリアされる | `permissionDenied=true` | `onScanStart()` | `permissionDenied=false`, `phase=WAITING_FOR_FIRST` |
+| TC-VM-025 | onCancel() で permissionDenied がクリアされる | `permissionDenied=true` | `onCancel()` | `permissionDenied=false`, `phase=IDLE` |
+| TC-VM-026 | 権限拒否後に再拒否すると再び permissionDenied=true | `permissionDenied=true` | `onScanStart()` → `onPermissionDenied()` | `permissionDenied=true`, `phase=IDLE` |
 
 ---
 
@@ -121,12 +123,11 @@ stateDiagram-v2
 | IDLE | `onPermissionDenied()` | IDLE | permissionDenied=true |
 | WAITING_FOR_FIRST | `onBarcodeDetected(valid)` | WAITING_FOR_SECOND | barcode1 保存 |
 | WAITING_FOR_FIRST | `onBarcodeDetected(null)` | WAITING_FOR_FIRST | errorMessage 設定 |
-| WAITING_FOR_FIRST | `onBarcodeDetected(valid)` クールダウン中 | WAITING_FOR_FIRST | 無視 |
 | WAITING_FOR_FIRST | `onCancel()` | IDLE | 全クリア |
 | WAITING_FOR_SECOND | `onBarcodeDetected(valid)` 一致 | RESULT | result=OK |
 | WAITING_FOR_SECOND | `onBarcodeDetected(valid)` 不一致 | RESULT | result=NG |
 | WAITING_FOR_SECOND | `onBarcodeDetected(null)` | WAITING_FOR_SECOND | errorMessage 設定 |
-| WAITING_FOR_SECOND | `onBarcodeDetected(valid)` クールダウン中 | WAITING_FOR_SECOND | 無視 |
+| WAITING_FOR_SECOND | `onBarcodeDetected(valid)` クールダウン中 | WAITING_FOR_SECOND | 1つ目読み取り直後の誤検出を無視 |
 | WAITING_FOR_SECOND | `onCancel()` | IDLE | 全クリア |
 | RESULT | `onRetry()` | WAITING_FOR_FIRST | 全クリア |
 | RESULT | `onCancel()` | IDLE | 全クリア |
@@ -225,4 +226,14 @@ fun okScan_emitsBeepThenOk() = runTest {
 | 読み取り時に音が鳴る | TC-VM-017, TC-VM-018, TC-VM-019 |
 | 判定時にOK/NG音が鳴る | TC-VM-018, TC-VM-019 |
 | 「もう一度」で再実行できる | TC-VM-006 |
+| 読み取り画面で「中止」を押すとスタート画面へ戻れる | TC-VM-007 + 手動確認 |
+| 判定画面でシステムバックを押すとスタート画面へ戻れる | TC-VM-008 + 手動確認 |
+| 読み取り画面でシステムバックを押すとスタート画面へ戻れる | TC-VM-007 + 手動確認 |
+| 空文字 / null 読み取り時に画面内メッセージを表示する | TC-VM-012〜TC-VM-016 + 手動確認 |
+| 空文字 / null 読み取り時にフェーズを進めない | TC-VM-012〜TC-VM-015 |
+| 空文字 / null 読み取り時に音を鳴らさない | TC-VM-020 |
+| 次の有効読み取りで失敗メッセージが消える | TC-VM-016 |
+| 画面はポートレート固定で動作する | 手動確認 / AndroidManifest 確認 |
+| 権限拒否後、再スタートで再要求または設定案内できる | TC-VM-021, TC-VM-024, TC-VM-026 + 手動確認 |
+| 判定画面ではカメラを停止し、「もう一度」で再起動する | 手動確認 |
 | QR_CODE / CODE_39 / CODE_128 を読み取れる | 実機手動確認 |

@@ -296,6 +296,19 @@ Kotlin / Jetpack Compose / CameraX / ML Kit Barcode Scanning / Gradle Kotlin DSL
 
 ---
 
+### Q24. `permissionDenied` フラグをいつクリアするか【重大度: 中】✅
+
+**回答:** `permissionDenied` は、再度スタート操作を始めた時点、または権限許可後に読み取り開始する時点でクリアする。
+
+- `onPermissionDenied()` で `permissionDenied=true`
+- 再度スタートボタンを押したら、古い権限エラー表示はいったんクリアする
+- 権限が再び拒否されたら、再度 `onPermissionDenied()` で `permissionDenied=true`
+- 権限が許可されて `onScanStart()` したら、`permissionDenied=false`
+- `onCancel()` でも `permissionDenied=false`
+- `onRetry()` では原則影響なし。ただし全体リセット処理を共通化するなら `false` に戻してよい
+
+---
+
 ## 確定した実装方針まとめ
 
 | 項目 | 値 |
@@ -324,5 +337,6 @@ Kotlin / Jetpack Compose / CameraX / ML Kit Barcode Scanning / Gradle Kotlin DSL
 | FeedbackSoundPlayer 管理 | MainActivity で onCreate 生成・onDestroy release |
 | onBarcodeDetected 引数型 | String?（null / blank は ViewModel 側で判定してフェーズ維持・エラーメッセージ表示） |
 | BarcodeScannerController 保持 | MainActivity が 1 インスタンスを生成・保持し、ScanScreen / CameraPreview に渡す |
+| permissionDenied クリア | onScanStart / onCancel で false。再拒否時は onPermissionDenied で true |
 | UIテスト | 今回は対象外 |
 | 発熱対策 | 今回は対象外（READMEに注意書きのみ） |
