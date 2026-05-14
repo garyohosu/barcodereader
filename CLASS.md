@@ -73,7 +73,6 @@ classDiagram
             <<ImageAnalysis.Analyzer>>
             -onDetected : (String?) -> Unit
             +analyze(image : ImageProxy)
-            -isValid(value : String) Boolean
         }
 
         class BarcodeScannerController {
@@ -120,7 +119,6 @@ classDiagram
             <<Composable>>
             +state : ScanState
             +onRetry : () -> Unit
-            +onBack : () -> Unit
         }
 
         class CameraPreview {
@@ -209,7 +207,7 @@ classDiagram
         +soundEvent : SharedFlow~SoundEvent~
         -cooldownActive : Boolean
         +onScanStart()
-        +onBarcodeDetected(value : String)
+        +onBarcodeDetected(value : String?)
         +onCancel()
         +onRetry()
         +onPermissionDenied()
@@ -232,9 +230,8 @@ classDiagram
 classDiagram
     class BarcodeAnalyzer {
         <<ImageAnalysis.Analyzer>>
-        -onDetected : (String) -> Unit
+        -onDetected : (String?) -> Unit
         +analyze(image : ImageProxy)
-        -isValid(value : String) Boolean
     }
 
     class BarcodeScannerController {
@@ -255,7 +252,7 @@ classDiagram
     class ScanViewModel {
         <<ViewModel>>
         +soundEvent : SharedFlow~SoundEvent~
-        +onBarcodeDetected(value : String)
+        +onBarcodeDetected(value : String?)
     }
 
     class MainActivity {
@@ -309,5 +306,5 @@ classDiagram
 | `MainActivity` | ComponentActivity | ViewModel・FeedbackSoundPlayer を保持し、SoundEvent を観察して音を鳴らす |
 | `StartScreen` | Composable | スタート画面。ボタン押下で onStartClick を呼ぶ |
 | `ScanScreen` | Composable | 読み取り画面。CameraPreview を内包し、フェーズ文言を表示する |
-| `ResultScreen` | Composable | 判定画面。OK/NG 表示と「もう一度」「戻る」ボタンを持つ |
+| `ResultScreen` | Composable | 判定画面。OK/NG 表示と「もう一度」ボタンを持つ |
 | `CameraPreview` | Composable | CameraX のプレビューを AndroidView でラップして表示する |

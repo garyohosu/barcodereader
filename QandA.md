@@ -261,6 +261,18 @@ Kotlin / Jetpack Compose / CameraX / ML Kit Barcode Scanning / Gradle Kotlin DSL
 
 ---
 
+### Q21. BarcodeScannerController の生成・保持場所【重大度: 中】✅
+
+**回答:** `BarcodeScannerController` は `MainActivity` が 1 インスタンスを生成・保持し、`ScanScreen` / `CameraPreview` に渡す。`ScanScreen` 内の `remember` では生成しない。
+
+- recomposition のたびに CameraX 管理オブジェクトが揺れるのを避ける
+- 判定画面で `stopCamera()` し、「もう一度」で同一インスタンスを使って `startCamera()` できる
+- `MainActivity` が `FeedbackSoundPlayer` と同じく、アプリ実行中の外部リソース管理役になる
+- `ScanScreen` / `CameraPreview` は表示と操作受付に集中できる
+- Q19 の「Controller を独立クラスにして CameraX の起動・停止・Analyzer バインドを集約する」方針と一致する
+
+---
+
 ## 確定した実装方針まとめ
 
 | 項目 | 値 |
@@ -288,5 +300,6 @@ Kotlin / Jetpack Compose / CameraX / ML Kit Barcode Scanning / Gradle Kotlin DSL
 | BarcodeScannerController | 独立クラスとして実装（CameraX の起動・停止・Analyzer バインドを集約） |
 | FeedbackSoundPlayer 管理 | MainActivity で onCreate 生成・onDestroy release |
 | onBarcodeDetected 引数型 | String?（null / blank は ViewModel 側で判定してフェーズ維持・エラーメッセージ表示） |
+| BarcodeScannerController 保持 | MainActivity が 1 インスタンスを生成・保持し、ScanScreen / CameraPreview に渡す |
 | UIテスト | 今回は対象外 |
 | 発熱対策 | 今回は対象外（READMEに注意書きのみ） |
