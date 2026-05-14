@@ -28,7 +28,7 @@ Androidスマートフォンのカメラを使って、2つのバーコードを
 - CameraX
 - ML Kit Barcode Scanning
 
-ただし、実装しやすい構成があれば、上記にこだわらず変更してよい。
+ただし、本実証実験版では §20「実装方針の追加指定」を優先し、Kotlin / Jetpack Compose / CameraX / ML Kit Barcode Scanning / Gradle Kotlin DSL で実装する。
 
 ## 5. 対象バーコード
 
