@@ -1,0 +1,92 @@
+package com.garyohosu.barcodereader.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.garyohosu.barcodereader.domain.ScanPhase
+import com.garyohosu.barcodereader.domain.ScanResult
+import com.garyohosu.barcodereader.domain.ScanState
+import com.garyohosu.barcodereader.domain.SoundEvent
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+private const val COOLDOWN_MS = 1000L
+private const val ERROR_EMPTY = "読み取りに失敗しました。もう一度バーコードをかざしてください。"
+
+class ScanViewModel : ViewModel() {
+
+    private val _state = MutableStateFlow(ScanState())
+    val state: StateFlow<ScanState> = _state.asStateFlow()
+
+    private val _soundEvent = MutableSharedFlow<SoundEvent>()
+    val soundEvent: SharedFlow<SoundEvent> = _soundEvent.asSharedFlow()
+
+    private var cooldownActive = false
+
+    fun onScanStart() {
+        _state.value = ScanState(phase = ScanPhase.WAITING_FOR_FIRST)
+    }
+
+    fun onBarcodeDetected(value: String?) {
+        val phase = _state.value.phase
+        if (phase != ScanPhase.WAITING_FOR_FIRST && phase != ScanPhase.WAITING_FOR_SECOND) return
+        if (cooldownActive) return
+
+        if (value.isNullOrBlank()) {
+            _state.value = _state.value.copy(errorMessage = ERROR_EMPTY)
+            return
+        }
+
+        cooldownActive = true
+        viewModelScope.launch {
+            delay(COOLDOWN_MS)
+            cooldownActive = false
+        }
+
+        when (phase) {
+            ScanPhase.WAITING_FOR_FIRST -> {
+                _state.value = _state.value.copy(
+                    barcode1 = value,
+                    phase = ScanPhase.WAITING_FOR_SECOND,
+                    errorMessage = null
+                )
+                emitSound(SoundEvent.BEEP)
+            }
+            ScanPhase.WAITING_FOR_SECOND -> {
+                val result = if (value == _state.value.barcode1) ScanResult.OK else ScanResult.NG
+                _state.value = _state.value.copy(
+                    barcode2 = value,
+                    result = result,
+                    phase = ScanPhase.RESULT,
+                    errorMessage = null
+                )
+                emitSound(SoundEvent.BEEP)
+                emitSound(if (result == ScanResult.OK) SoundEvent.OK else SoundEvent.NG)
+            }
+            else -> Unit
+        }
+    }
+
+    fun onCancel() {
+        cooldownActive = false
+        _state.value = ScanState()
+    }
+
+    fun onRetry() {
+        cooldownActive = false
+        _state.value = ScanState(phase = ScanPhase.WAITING_FOR_FIRST)
+    }
+
+    fun onPermissionDenied() {
+        _state.value = _state.value.copy(permissionDenied = true, phase = ScanPhase.IDLE)
+    }
+
+    private fun emitSound(event: SoundEvent) {
+        viewModelScope.launch { _soundEvent.emit(event) }
+    }
+}

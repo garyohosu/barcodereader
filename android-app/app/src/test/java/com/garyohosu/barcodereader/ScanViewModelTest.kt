@@ -1,0 +1,319 @@
+package com.garyohosu.barcodereader
+
+import com.garyohosu.barcodereader.domain.ScanPhase
+import com.garyohosu.barcodereader.domain.ScanResult
+import com.garyohosu.barcodereader.domain.SoundEvent
+import com.garyohosu.barcodereader.viewmodel.ScanViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class ScanViewModelTest {
+
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
+    // ── 初期状態 ────────────────────────────────────────────────
+
+    @Test
+    fun tc_vm_001_initialState() {
+        val vm = ScanViewModel()
+        val s = vm.state.value
+        assertEquals(ScanPhase.IDLE, s.phase)
+        assertNull(s.barcode1)
+        assertNull(s.barcode2)
+        assertNull(s.result)
+        assertNull(s.errorMessage)
+        assertFalse(s.permissionDenied)
+    }
+
+    // ── フェーズ遷移 ────────────────────────────────────────────
+
+    @Test
+    fun tc_vm_002_onScanStart_movesToWaitingForFirst() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart()
+        runCurrent()
+        assertEquals(ScanPhase.WAITING_FOR_FIRST, vm.state.value.phase)
+    }
+
+    @Test
+    fun tc_vm_003_firstValidScan_savesBarcode1AndMovesToSecond() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        assertEquals("ABC", vm.state.value.barcode1)
+        assertEquals(ScanPhase.WAITING_FOR_SECOND, vm.state.value.phase)
+    }
+
+    @Test
+    fun tc_vm_004_secondValidScan_matchOk() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        advanceTimeBy(1001L); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        assertEquals("ABC", vm.state.value.barcode2)
+        assertEquals(ScanResult.OK, vm.state.value.result)
+        assertEquals(ScanPhase.RESULT, vm.state.value.phase)
+    }
+
+    @Test
+    fun tc_vm_005_secondValidScan_mismatchNg() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        advanceTimeBy(1001L); runCurrent()
+        vm.onBarcodeDetected("XYZ"); runCurrent()
+        assertEquals("XYZ", vm.state.value.barcode2)
+        assertEquals(ScanResult.NG, vm.state.value.result)
+        assertEquals(ScanPhase.RESULT, vm.state.value.phase)
+    }
+
+    @Test
+    fun tc_vm_006_onRetry_resetsToWaitingForFirst() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        advanceTimeBy(1001L); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        vm.onRetry(); runCurrent()
+        val s = vm.state.value
+        assertEquals(ScanPhase.WAITING_FOR_FIRST, s.phase)
+        assertNull(s.barcode1)
+        assertNull(s.barcode2)
+        assertNull(s.result)
+    }
+
+    @Test
+    fun tc_vm_007_onCancel_fromScan_resetsToIdle() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        vm.onCancel(); runCurrent()
+        val s = vm.state.value
+        assertEquals(ScanPhase.IDLE, s.phase)
+        assertNull(s.barcode1)
+        assertNull(s.barcode2)
+        assertNull(s.errorMessage)
+    }
+
+    @Test
+    fun tc_vm_008_onCancel_fromResult_resetsToIdle() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        advanceTimeBy(1001L); runCurrent()
+        vm.onBarcodeDetected("XYZ"); runCurrent()
+        vm.onCancel(); runCurrent()
+        assertEquals(ScanPhase.IDLE, vm.state.value.phase)
+        assertNull(vm.state.value.result)
+    }
+
+    // ── クールダウン ────────────────────────────────────────────
+
+    @Test
+    fun tc_vm_009_cooldown_ignoresScanWithin1Second() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        vm.onBarcodeDetected("XYZ"); runCurrent() // クールダウン中 → 無視
+        assertEquals("ABC", vm.state.value.barcode1)
+        assertNull(vm.state.value.barcode2)
+        assertEquals(ScanPhase.WAITING_FOR_SECOND, vm.state.value.phase)
+    }
+
+    @Test
+    fun tc_vm_010_cooldown_acceptsScanAfter1Second() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        advanceTimeBy(1001L); runCurrent()
+        vm.onBarcodeDetected("XYZ"); runCurrent()
+        assertEquals("XYZ", vm.state.value.barcode2)
+        assertEquals(ScanPhase.RESULT, vm.state.value.phase)
+    }
+
+    @Test
+    fun tc_vm_011_sameValueTwiceAfterCooldown_isOk() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("SAME"); runCurrent()
+        advanceTimeBy(1001L); runCurrent()
+        vm.onBarcodeDetected("SAME"); runCurrent()
+        assertEquals(ScanResult.OK, vm.state.value.result)
+    }
+
+    // ── 空文字 / null 読み取り ──────────────────────────────────
+
+    @Test
+    fun tc_vm_012_nullScan_keepsPhaseAndSetsError() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected(null); runCurrent()
+        assertEquals(ScanPhase.WAITING_FOR_FIRST, vm.state.value.phase)
+        assertNull(vm.state.value.barcode1)
+        assertNotNull(vm.state.value.errorMessage)
+    }
+
+    @Test
+    fun tc_vm_013_emptyStringScan_keepsPhaseAndSetsError() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected(""); runCurrent()
+        assertEquals(ScanPhase.WAITING_FOR_FIRST, vm.state.value.phase)
+        assertNull(vm.state.value.barcode1)
+        assertNotNull(vm.state.value.errorMessage)
+    }
+
+    @Test
+    fun tc_vm_014_blankStringScan_keepsPhaseAndSetsError() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("   "); runCurrent()
+        assertEquals(ScanPhase.WAITING_FOR_FIRST, vm.state.value.phase)
+        assertNull(vm.state.value.barcode1)
+        assertNotNull(vm.state.value.errorMessage)
+    }
+
+    @Test
+    fun tc_vm_015_nullScanInSecondPhase_keepsPhase() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        advanceTimeBy(1001L); runCurrent()
+        vm.onBarcodeDetected(null); runCurrent()
+        assertEquals(ScanPhase.WAITING_FOR_SECOND, vm.state.value.phase)
+        assertNull(vm.state.value.barcode2)
+        assertNotNull(vm.state.value.errorMessage)
+    }
+
+    @Test
+    fun tc_vm_016_validScanAfterError_clearsErrorMessage() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected(null); runCurrent()
+        assertNotNull(vm.state.value.errorMessage)
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        assertNull(vm.state.value.errorMessage)
+    }
+
+    // ── SoundEvent 発火 ─────────────────────────────────────────
+
+    @Test
+    fun tc_vm_017_firstValidScan_emitsBeep() = runTest {
+        val vm = ScanViewModel()
+        val events = mutableListOf<SoundEvent>()
+        val job = launch { vm.soundEvent.collect { events.add(it) } }
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        assertTrue(SoundEvent.BEEP in events)
+        job.cancel()
+    }
+
+    @Test
+    fun tc_vm_018_okScan_emitsBeepThenOk() = runTest {
+        val vm = ScanViewModel()
+        val events = mutableListOf<SoundEvent>()
+        val job = launch { vm.soundEvent.collect { events.add(it) } }
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        advanceTimeBy(1001L); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        assertEquals(listOf(SoundEvent.BEEP, SoundEvent.BEEP, SoundEvent.OK), events)
+        job.cancel()
+    }
+
+    @Test
+    fun tc_vm_019_ngScan_emitsBeepThenNg() = runTest {
+        val vm = ScanViewModel()
+        val events = mutableListOf<SoundEvent>()
+        val job = launch { vm.soundEvent.collect { events.add(it) } }
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        advanceTimeBy(1001L); runCurrent()
+        vm.onBarcodeDetected("XYZ"); runCurrent()
+        assertEquals(listOf(SoundEvent.BEEP, SoundEvent.BEEP, SoundEvent.NG), events)
+        job.cancel()
+    }
+
+    @Test
+    fun tc_vm_020_nullScan_emitsNoSoundEvent() = runTest {
+        val vm = ScanViewModel()
+        val events = mutableListOf<SoundEvent>()
+        val job = launch { vm.soundEvent.collect { events.add(it) } }
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected(null); runCurrent()
+        assertTrue(events.isEmpty())
+        job.cancel()
+    }
+
+    // ── 権限・入力ガード ────────────────────────────────────────
+
+    @Test
+    fun tc_vm_021_onPermissionDenied_setsFlag() = runTest {
+        val vm = ScanViewModel()
+        vm.onPermissionDenied(); runCurrent()
+        assertTrue(vm.state.value.permissionDenied)
+        assertEquals(ScanPhase.IDLE, vm.state.value.phase)
+    }
+
+    @Test
+    fun tc_vm_022_idleScan_isIgnored() = runTest {
+        val vm = ScanViewModel()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        assertEquals(ScanPhase.IDLE, vm.state.value.phase)
+        assertNull(vm.state.value.barcode1)
+    }
+
+    @Test
+    fun tc_vm_023_resultScan_isIgnored() = runTest {
+        val vm = ScanViewModel()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        advanceTimeBy(1001L); runCurrent()
+        vm.onBarcodeDetected("ABC"); runCurrent()
+        assertEquals(ScanPhase.RESULT, vm.state.value.phase)
+        vm.onBarcodeDetected("NEW"); runCurrent()
+        assertEquals(ScanPhase.RESULT, vm.state.value.phase)
+    }
+
+    @Test
+    fun tc_vm_024_onScanStart_clearsDeniedFlag() = runTest {
+        val vm = ScanViewModel()
+        vm.onPermissionDenied(); runCurrent()
+        assertTrue(vm.state.value.permissionDenied)
+        vm.onScanStart(); runCurrent()
+        assertFalse(vm.state.value.permissionDenied)
+        assertEquals(ScanPhase.WAITING_FOR_FIRST, vm.state.value.phase)
+    }
+
+    @Test
+    fun tc_vm_025_onCancel_clearsDeniedFlag() = runTest {
+        val vm = ScanViewModel()
+        vm.onPermissionDenied(); runCurrent()
+        vm.onCancel(); runCurrent()
+        assertFalse(vm.state.value.permissionDenied)
+        assertEquals(ScanPhase.IDLE, vm.state.value.phase)
+    }
+
+    @Test
+    fun tc_vm_026_deniedThenStartThenDeniedAgain() = runTest {
+        val vm = ScanViewModel()
+        vm.onPermissionDenied(); runCurrent()
+        vm.onScanStart(); runCurrent()
+        vm.onPermissionDenied(); runCurrent()
+        assertTrue(vm.state.value.permissionDenied)
+        assertEquals(ScanPhase.IDLE, vm.state.value.phase)
+    }
+}
