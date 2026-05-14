@@ -273,6 +273,31 @@ Kotlin / Jetpack Compose / CameraX / ML Kit Barcode Scanning / Gradle Kotlin DSL
 
 ---
 
+## テストケース設計から生じた不明点（要判断）
+
+### Q22. クールダウンのテスト方法【重大度: 中】⏳
+
+`ScanViewModel` のクールダウンは `viewModelScope` + `delay(1000L)` で実装する想定。  
+Unit テストで時間経過を制御するには `TestCoroutineScheduler` が必要。
+
+**確認事項:**
+- `ScanViewModel` のコンストラクタに `CoroutineDispatcher` を渡せるようにするか（テスト用に差し替え可能にする）
+- それとも `StandardTestDispatcher` / `UnconfinedTestDispatcher` の使い分けで対応するか
+- TESTCASE.md の `advanceTimeBy` の使い方で確定してよいか
+
+---
+
+### Q23. BarcodeAnalyzer の形式フィルタリングのテスト方法【重大度: 低】⏳
+
+ML Kit の `BarcodeScanner` はインターフェースではなくクラスのため、JVM Unit テストでのモック化が難しい。  
+TESTCASE.md では `isValid(value: String?)` を切り出して単体テストする方針にしている。
+
+**確認事項:**
+- `isValid()` を `BarcodeAnalyzer` の内部関数に留めるか、テスト可能にするため `internal` または `@VisibleForTesting` を付けるか
+- バーコード形式（FORMAT_QR_CODE 等）のフィルタリングは Instrumented テストに委ねてよいか
+
+---
+
 ## 確定した実装方針まとめ
 
 | 項目 | 値 |
