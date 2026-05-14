@@ -229,43 +229,35 @@ Kotlin / Jetpack Compose / CameraX / ML Kit Barcode Scanning / Gradle Kotlin DSL
 
 ---
 
-## クラス設計から生じた不明点（要判断）
+## クラス設計から生じた不明点（解決済み）
 
-### Q18. SoundEvent の伝搬方法【重大度: 中】⏳
+### Q18. SoundEvent の伝搬方法【重大度: 中】✅
 
-Q9 で「ViewModel は音を直接鳴らさず、イベントを発火して UI 側で FeedbackSoundPlayer を呼ぶ」と決定した。  
-CLASS.md では `ScanViewModel` が `SharedFlow<SoundEvent>` を持つ設計にしたが、別の実装方法もある。
+**回答:** A案で確定。`ScanViewModel` が `SharedFlow<SoundEvent>` を持ち、`MainActivity` が `collect` して `FeedbackSoundPlayer` を呼ぶ。
 
-**選択肢:**
-- A: `ScanViewModel` が `SharedFlow<SoundEvent>` を持ち、`MainActivity` が `collect` して音を鳴らす（CLASS.md の現案）
-- B: `ScanState` に `soundEvent: SoundEvent?` フィールドを追加し、StateFlow と一本化する（consumeOnce 問題あり）
-- C: `ScanScreen` / `ResultScreen` 内の `LaunchedEffect` で SoundEvent を処理する
-
-**確認事項:** A案（SharedFlow）で確定してよいか。
+- 音は画面状態ではなく一度だけ発火するイベントであり、`ScanState` に入れると回転・再描画時に再生される恐れがある
+- `SharedFlow` は「一回限りのイベント」として扱いやすく、ViewModel を Android 依存から切り離す方針とも一致する
+- `SoundEvent.BEEP` → `playBeep()` / `SoundEvent.OK` → `playOk()` / `SoundEvent.NG` → `playNg()`
 
 ---
 
-### Q19. BarcodeScannerController の要否【重大度: 中】⏳
+### Q19. BarcodeScannerController の要否【重大度: 中】✅
 
-plan.md Task 5 に `BarcodeScannerController.kt` が登場するが、役割が `CameraPreview` Composable と重複する可能性がある。
+**回答:** A案で確定。`BarcodeScannerController` を独立クラスとして実装し、CameraX の起動・停止・Analyzer バインドを集約する。
 
-**選択肢:**
-- A: `BarcodeScannerController` を独立クラスとして作り、CameraX の起動・停止・Analyzer バインドを集約する（CLASS.md の現案）
-- B: CameraX の setup を `ScanScreen` または `CameraPreview` の `LaunchedEffect` / `DisposableEffect` 内に直接書く
-
-**確認事項:** 独立クラスにする（A案）か、Composable 内に閉じ込める（B案）か。
+- Composable に CameraX 処理を書くと重くなる
+- 判定画面でのカメラ停止・「もう一度」での再起動という仕様と相性が良い
+- `startCamera()` で Preview / ImageAnalysis を bind、`stopCamera()` で unbind する
+- `CameraPreview` は表示専用 Composable に徹する
 
 ---
 
-### Q20. FeedbackSoundPlayer のライフサイクル管理【重大度: 低】⏳
+### Q20. FeedbackSoundPlayer のライフサイクル管理【重大度: 低】✅
 
-`ToneGenerator` は `release()` を呼ばないとリソースリークが起きる。CLASS.md では `MainActivity.onDestroy()` で管理する設計にしたが、Compose では `DisposableEffect` を使う方法もある。
+**回答:** A案で確定。`MainActivity.onCreate()` で生成し、`onDestroy()` で `release()` する。
 
-**選択肢:**
-- A: `MainActivity` で `onCreate` に生成、`onDestroy` で `release()`（CLASS.md の現案）
-- B: `ScanScreen` の `DisposableEffect` で管理し、画面離脱時に解放する
-
-**確認事項:** A案（MainActivity 管理）で確定してよいか。
+- 音は読み取り画面・判定画面どちらでも使うため、`ScanScreen` の `DisposableEffect` で管理すると画面遷移のたびに生成・破棄されて複雑になる
+- `MainActivity` で `soundEvent.collect` する設計と一致し、シンプルに保てる
 
 ---
 
@@ -292,5 +284,9 @@ plan.md Task 5 に `BarcodeScannerController.kt` が登場するが、役割が 
 | 権限拒否後の再試行 | 再スタートで再要求。再表示不可なら設定許可を案内（最小実装は案内文のみ） |
 | 判定画面のカメラ | 停止する。「もう一度」で再起動 |
 | Analyzerスレッド | background で解析、ViewModel 更新は Main thread |
+| SoundEvent 伝搬 | ScanViewModel が SharedFlow~SoundEvent~ を持ち、MainActivity が collect して FeedbackSoundPlayer を呼ぶ |
+| BarcodeScannerController | 独立クラスとして実装（CameraX の起動・停止・Analyzer バインドを集約） |
+| FeedbackSoundPlayer 管理 | MainActivity で onCreate 生成・onDestroy release |
+| onBarcodeDetected 引数型 | String?（null / blank は ViewModel 側で判定してフェーズ維持・エラーメッセージ表示） |
 | UIテスト | 今回は対象外 |
 | 発熱対策 | 今回は対象外（READMEに注意書きのみ） |

@@ -58,7 +58,7 @@ classDiagram
             +soundEvent : SharedFlow~SoundEvent~
             -cooldownActive : Boolean
             +onScanStart()
-            +onBarcodeDetected(value : String)
+            +onBarcodeDetected(value : String?)
             +onCancel()
             +onRetry()
             +onPermissionDenied()
@@ -71,7 +71,7 @@ classDiagram
     namespace camera {
         class BarcodeAnalyzer {
             <<ImageAnalysis.Analyzer>>
-            -onDetected : (String) -> Unit
+            -onDetected : (String?) -> Unit
             +analyze(image : ImageProxy)
             -isValid(value : String) Boolean
         }
