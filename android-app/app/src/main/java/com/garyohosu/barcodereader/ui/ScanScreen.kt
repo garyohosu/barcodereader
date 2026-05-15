@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -46,6 +48,7 @@ fun ScanScreen(
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
+                .statusBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 16.dp)
         )
 
@@ -69,7 +72,9 @@ fun ScanScreen(
                 .background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
-            cameraContent()
+            Box(modifier = Modifier.fillMaxSize()) {
+                cameraContent()
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -77,7 +82,9 @@ fun ScanScreen(
         Button(
             onClick = onCancel,
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF666666)),
-            modifier = Modifier.padding(bottom = 32.dp)
+            modifier = Modifier
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp)
         ) {
             Text(text = "中止")
         }
