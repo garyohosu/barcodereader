@@ -3,24 +3,14 @@ package com.garyohosu.barcodereader.camera
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 
 class BarcodeAnalyzer(
     private val onDetected: (String?) -> Unit
 ) : ImageAnalysis.Analyzer {
 
-    private val options = BarcodeScannerOptions.Builder()
-        .setBarcodeFormats(
-            Barcode.FORMAT_QR_CODE,
-            Barcode.FORMAT_CODE_39,
-            Barcode.FORMAT_CODE_128
-        )
-        .build()
-
-    private val scanner = BarcodeScanning.getClient(options)
+    private val scanner = BarcodeScanning.getClient()
 
     @ExperimentalGetImage
     override fun analyze(imageProxy: ImageProxy) {
