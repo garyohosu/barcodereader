@@ -39,6 +39,12 @@ class ScanViewModel(
     private val _targetCount = MutableStateFlow(settingsRepo?.targetCount ?: 0)
     val targetCount: StateFlow<Int> = _targetCount.asStateFlow()
 
+    private val _barcodeLength = MutableStateFlow(settingsRepo?.barcodeLength ?: 0)
+    val barcodeLength: StateFlow<Int> = _barcodeLength.asStateFlow()
+
+    private val _barcodeHeader = MutableStateFlow(settingsRepo?.barcodeHeader ?: "")
+    val barcodeHeader: StateFlow<String> = _barcodeHeader.asStateFlow()
+
     fun onScanStart() {
         _state.value = ScanState(phase = ScanPhase.WAITING_FOR_FIRST)
     }
@@ -49,6 +55,12 @@ class ScanViewModel(
 
         if (value.isNullOrBlank()) {
             _state.value = _state.value.copy(errorMessage = ERROR_EMPTY)
+            return
+        }
+
+        val validationError = validateBarcode(value)
+        if (validationError != null) {
+            _state.value = _state.value.copy(errorMessage = validationError)
             return
         }
 
@@ -111,14 +123,30 @@ class ScanViewModel(
         _state.value = _state.value.copy(permissionDenied = true, phase = ScanPhase.IDLE)
     }
 
-    fun onSetTargetCount(count: Int) {
-        settingsRepo?.targetCount = count
-        _targetCount.value = count
+    fun onSaveSettings(targetCount: Int, barcodeLength: Int, barcodeHeader: String) {
+        settingsRepo?.targetCount = targetCount
+        settingsRepo?.barcodeLength = barcodeLength
+        settingsRepo?.barcodeHeader = barcodeHeader
+        _targetCount.value = targetCount
+        _barcodeLength.value = barcodeLength
+        _barcodeHeader.value = barcodeHeader
     }
 
     fun onClearLog() {
         logRepo?.clear()
         _logCount.value = 0
+    }
+
+    private fun validateBarcode(value: String): String? {
+        val length = _barcodeLength.value
+        if (length > 0 && value.length != length) {
+            return "バーコード長が違います（読んだ長さ = ${value.length}）"
+        }
+        val header = _barcodeHeader.value
+        if (header.isNotEmpty() && !value.startsWith(header)) {
+            return "ヘッダーが一致しません"
+        }
+        return null
     }
 
     private fun saveLog(barcode1: String, barcode2: String) {

@@ -319,9 +319,42 @@ class ScanViewModelTest {
     }
 
     @Test
-    fun tc_vm_030_onSetTargetCount_updatesTargetCount() = runTest {
+    fun tc_vm_030_onSaveSettings_updatesTargetCount() = runTest {
         val vm = ScanViewModel()
-        vm.onSetTargetCount(100); runCurrent()
+        vm.onSaveSettings(100, 0, ""); runCurrent()
         assertEquals(100, vm.targetCount.value)
+    }
+
+    // ── バーコードバリデーション ────────────────────────────────
+
+    @Test
+    fun tc_vm_031_wrongLength_setsErrorAndKeepsPhase() = runTest {
+        val vm = ScanViewModel()
+        vm.onSaveSettings(1, 5, ""); runCurrent()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("AB"); runCurrent()
+        assertEquals(ScanPhase.WAITING_FOR_FIRST, vm.state.value.phase)
+        assertNotNull(vm.state.value.errorMessage)
+        assertTrue(vm.state.value.errorMessage!!.contains("2"))
+    }
+
+    @Test
+    fun tc_vm_032_wrongHeader_setsErrorAndKeepsPhase() = runTest {
+        val vm = ScanViewModel()
+        vm.onSaveSettings(1, 0, "FOO"); runCurrent()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("BARXYZ"); runCurrent()
+        assertEquals(ScanPhase.WAITING_FOR_FIRST, vm.state.value.phase)
+        assertNotNull(vm.state.value.errorMessage)
+    }
+
+    @Test
+    fun tc_vm_033_correctLengthAndHeader_advancesPhase() = runTest {
+        val vm = ScanViewModel()
+        vm.onSaveSettings(1, 6, "FOO"); runCurrent()
+        vm.onScanStart(); runCurrent()
+        vm.onBarcodeDetected("FOOBAR"); runCurrent()
+        assertEquals(ScanPhase.CONFIRMING_FIRST, vm.state.value.phase)
+        assertNull(vm.state.value.errorMessage)
     }
 }

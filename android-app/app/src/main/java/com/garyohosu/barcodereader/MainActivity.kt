@@ -47,6 +47,8 @@ class MainActivity : ComponentActivity() {
                     val state by vm.state.collectAsStateWithLifecycle()
                     val logCount by vm.logCount.collectAsStateWithLifecycle()
                     val targetCount by vm.targetCount.collectAsStateWithLifecycle()
+                    val barcodeLength by vm.barcodeLength.collectAsStateWithLifecycle()
+                    val barcodeHeader by vm.barcodeHeader.collectAsStateWithLifecycle()
 
                     val controller = remember {
                         BarcodeScannerController(this@MainActivity) { value ->
@@ -76,11 +78,13 @@ class MainActivity : ComponentActivity() {
                             permissionDenied = state.permissionDenied,
                             logCount = logCount,
                             targetCount = targetCount,
+                            barcodeLength = barcodeLength,
+                            barcodeHeader = barcodeHeader,
                             versionName = BuildConfig.VERSION_NAME,
                             onScanStart = { permissionLauncher.launch(Manifest.permission.CAMERA) },
                             onDownloadCsv = { shareCsv(logRepo) },
                             onClearLog = vm::onClearLog,
-                            onSetTargetCount = vm::onSetTargetCount
+                            onSaveSettings = vm::onSaveSettings
                         )
                         ScanPhase.WAITING_FOR_FIRST,
                         ScanPhase.CONFIRMING_FIRST,

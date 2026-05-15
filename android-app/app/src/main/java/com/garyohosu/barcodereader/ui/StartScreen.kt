@@ -16,8 +16,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,19 +35,25 @@ fun StartScreen(
     permissionDenied: Boolean,
     logCount: Int,
     targetCount: Int,
+    barcodeLength: Int,
+    barcodeHeader: String,
     versionName: String,
     onScanStart: () -> Unit,
     onDownloadCsv: () -> Unit,
     onClearLog: () -> Unit,
-    onSetTargetCount: (Int) -> Unit
+    onSaveSettings: (targetCount: Int, barcodeLength: Int, barcodeHeader: String) -> Unit
 ) {
     val isComplete = targetCount > 0 && logCount >= targetCount
-    val startEnabled = !permissionDenied && !isComplete
+    val startEnabled = !permissionDenied && targetCount > 0 && !isComplete
 
-    var showTargetDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
     var targetInput by remember { mutableStateOf("") }
+    var lengthInput by remember { mutableStateOf("") }
+    var headerInput by remember { mutableStateOf("") }
+
     var showClearConfirmDialog by remember { mutableStateOf(false) }
 
+    // 確認ダイアログ
     if (showClearConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showClearConfirmDialog = false },
@@ -65,27 +71,45 @@ fun StartScreen(
         )
     }
 
-    if (showTargetDialog) {
+    // 設定ダイアログ
+    if (showSettingsDialog) {
         AlertDialog(
-            onDismissRequest = { showTargetDialog = false },
-            title = { Text("読み込み数を設定") },
+            onDismissRequest = { showSettingsDialog = false },
+            title = { Text("設定") },
             text = {
-                TextField(
-                    value = targetInput,
-                    onValueChange = { targetInput = it.filter { c -> c.isDigit() } },
-                    label = { Text("目標件数（0で無制限）") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = targetInput,
+                        onValueChange = { targetInput = it.filter { c -> c.isDigit() } },
+                        label = { Text("読み込み数（1以上）") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = lengthInput,
+                        onValueChange = { lengthInput = it.filter { c -> c.isDigit() } },
+                        label = { Text("バーコード長（0で任意）") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = headerInput,
+                        onValueChange = { headerInput = it },
+                        label = { Text("ヘッダー（空欄でチェックなし）") },
+                        singleLine = true
+                    )
+                }
             },
             confirmButton = {
                 Button(onClick = {
-                    onSetTargetCount(targetInput.toIntOrNull() ?: 0)
-                    showTargetDialog = false
-                }) { Text("設定") }
+                    val t = targetInput.toIntOrNull() ?: 0
+                    val l = lengthInput.toIntOrNull() ?: 0
+                    onSaveSettings(t, l, headerInput.trim())
+                    showSettingsDialog = false
+                }) { Text("保存") }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showTargetDialog = false }) { Text("キャンセル") }
+                OutlinedButton(onClick = { showSettingsDialog = false }) { Text("キャンセル") }
             }
         )
     }
@@ -105,7 +129,7 @@ fun StartScreen(
         )
 
         if (permissionDenied) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "カメラの使用が許可されていません。\n設定アプリからカメラ権限を有効にしてください。",
                 color = Color(0xFFB00020),
@@ -114,22 +138,33 @@ fun StartScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        if (targetCount > 0) {
-            val progressText = if (isComplete) {
-                "読み込み終わりました。\n新しい読み込み数を設定してください"
-            } else {
-                "$logCount / $targetCount 件"
-            }
-            Text(
-                text = progressText,
-                style = MaterialTheme.typography.titleMedium,
-                color = if (isComplete) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+        // 進捗 / 未設定メッセージ
+        when {
+            targetCount == 0 ->
+                Text(
+                    text = "読み込み数を設定してください",
+                    color = Color(0xFFB00020),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+            isComplete ->
+                Text(
+                    text = "読み込み終わりました。\n新しい読み込み数を設定してください",
+                    color = Color(0xFF2E7D32),
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center
+                )
+            else ->
+                Text(
+                    text = "$logCount / $targetCount 件",
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center
+                )
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
             onClick = onScanStart,
@@ -142,9 +177,11 @@ fun StartScreen(
 
         OutlinedButton(onClick = {
             targetInput = if (targetCount > 0) targetCount.toString() else ""
-            showTargetDialog = true
+            lengthInput = if (barcodeLength > 0) barcodeLength.toString() else ""
+            headerInput = barcodeHeader
+            showSettingsDialog = true
         }) {
-            Text(text = if (targetCount > 0) "読み込み数: $targetCount 件（変更）" else "読み込み数を設定")
+            Text(text = "設定")
         }
 
         Spacer(modifier = Modifier.height(48.dp))
@@ -165,9 +202,7 @@ fun StartScreen(
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(
                 onClick = onDownloadCsv,
                 enabled = logCount > 0
@@ -177,9 +212,7 @@ fun StartScreen(
             OutlinedButton(
                 onClick = { showClearConfirmDialog = true },
                 enabled = logCount > 0,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color(0xFFB00020)
-                )
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFB00020))
             ) {
                 Text(text = "ログをクリア")
             }
