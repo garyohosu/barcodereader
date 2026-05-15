@@ -117,14 +117,18 @@ fun ResultScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
+            val buttonText = when {
+                result == ScanResult.OK && isComplete -> "スタート画面へ"
+                result == ScanResult.OK -> "次のバーコードを読む"
+                else -> "もう一度"
+            }
+            val buttonAction = if (result == ScanResult.OK && isComplete) onCancel else onRetry
+
             Button(
-                onClick = if (result == ScanResult.OK && isComplete) onCancel else onRetry,
+                onClick = buttonAction,
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White)
             ) {
-                Text(
-                    text = if (result == ScanResult.OK && isComplete) "スタート画面へ" else "もう一度",
-                    color = bgColor
-                )
+                Text(text = buttonText, color = bgColor)
             }
         }
     }
