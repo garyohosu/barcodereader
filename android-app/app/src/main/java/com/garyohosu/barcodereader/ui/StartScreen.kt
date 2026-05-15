@@ -46,6 +46,24 @@ fun StartScreen(
 
     var showTargetDialog by remember { mutableStateOf(false) }
     var targetInput by remember { mutableStateOf("") }
+    var showClearConfirmDialog by remember { mutableStateOf(false) }
+
+    if (showClearConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirmDialog = false },
+            title = { Text("ログをクリア") },
+            text = { Text("ログをクリアします。\n重複チェックもリセットされます。よろしいですか？") },
+            confirmButton = {
+                Button(
+                    onClick = { onClearLog(); showClearConfirmDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020))
+                ) { Text("クリア") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showClearConfirmDialog = false }) { Text("キャンセル") }
+            }
+        )
+    }
 
     if (showTargetDialog) {
         AlertDialog(
@@ -157,7 +175,7 @@ fun StartScreen(
                 Text(text = "CSVをダウンロード")
             }
             OutlinedButton(
-                onClick = onClearLog,
+                onClick = { showClearConfirmDialog = true },
                 enabled = logCount > 0,
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = Color(0xFFB00020)
