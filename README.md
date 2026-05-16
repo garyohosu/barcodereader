@@ -8,7 +8,7 @@ Androidスマートフォンのカメラで2つのバーコードを連続読み
 
 | バージョン | ダウンロード |
 |-----------|------------|
-| v0.3.0 | [app-debug.apk](https://github.com/garyohosu/barcodereader/releases/tag/v0.3.0) |
+| v0.3.0 | [barcodereader-v0.3.0-debug.apk](https://github.com/garyohosu/barcodereader/releases/tag/v0.3.0) |
 | v0.1.0 | [barcodereader-v0.1.0-debug.apk](https://github.com/garyohosu/barcodereader/releases/tag/v0.1.0) |
 
 ---
@@ -159,6 +159,20 @@ OK →「次のバーコードを読む」/ NG・重複 →「もう一度」
 | 読み取り成功（1つ目・2つ目） | ピッ |
 | 一致判定（OK） | ピンポン |
 | 不一致判定（NG） | ブブー |
+| 重複判定（DUPLICATE） | ブブー |
+
+### ログの記録内容
+
+OK判定（一致かつ未登録）のみCSVに記録されます。NG・重複は保存されません。
+
+| カラム | 内容 | 例 |
+|--------|------|----|
+| 日時 | 読み取り日時 | `2026-05-16 14:32:01` |
+| 1本目 | 1回目に読んだバーコード値 | `LOT-20260516-001` |
+| 2本目 | 2回目に読んだバーコード値 | `LOT-20260516-001` |
+| 結果 | 常に `OK` | `OK` |
+
+CSVは「CSVをダウンロード」ボタンから Android の共有シートを使って送信できます。
 
 ---
 
